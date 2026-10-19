@@ -94,7 +94,7 @@ hr{border:0;border-top:1px solid var(--line);margin:20px 0}
   </div>
   <div class="settings">
     <div class="field"><label for="threshold">Segnala sotto (nitidezza)</label><input id="threshold" type="number" min="0" max="1000" step="10" value="180"><label class="checkline"><input id="autoAnalyze" type="checkbox" checked> Analizza all'apertura</label></div>
-    <div class="field"><label for="similarity">Sensibilità foto simili</label><select id="similarity"><option value="5">Alta (più selettiva)</option><option value="8" selected>Bilanciata</option><option value="11">Bassa (più gruppi)</option></select><label class="checkline"><input id="markDuplicates" type="checkbox" checked> Evidenzia foto simili</label></div>
+    <div class="field"><label for="similarity">Sensibilità foto simili</label><select id="similarity"><option value="6">Alta (più selettiva)</option><option value="9" selected>Bilanciata</option><option value="12">Bassa (più gruppi)</option></select><label class="checkline"><input id="markDuplicates" type="checkbox" checked> Evidenzia foto simili</label></div>
     <div class="field"><label for="sort">Ordina per</label><select id="sort"><option value="name">Nome file</option><option value="sharpness">Nitidezza</option><option value="size">Dimensione file</option></select><label class="checkline"><input id="onlyReview" type="checkbox"> Solo da controllare / simili</label></div>
   </div>
   <div class="toolbar">
@@ -166,30 +166,79 @@ function fmt(n){return n<1024?n+' B':n<1048576?(n/1024).toFixed(1)+' KB':(n/1048
 function imageCanvas(file){
  return new Promise((resolve,reject)=>{const url=URL.createObjectURL(file),img=new Image();img.onload=()=>{const scale=Math.min(1,800/img.naturalWidth,600/img.naturalHeight),w=Math.max(1,Math.round(img.naturalWidth*scale)),h=Math.max(1,Math.round(img.naturalHeight*scale)),canvas=document.createElement('canvas');canvas.width=w;canvas.height=h;const ctx=canvas.getContext('2d',{willReadFrequently:true});ctx.drawImage(img,0,0,w,h);URL.revokeObjectURL(url);resolve({canvas,ctx,w,h})};img.onerror=()=>{URL.revokeObjectURL(url);reject(new Error('Formato non leggibile dal browser'))};img.src=url});
 }
+function medianBlur3(gray,w,h){
+ const out=new Float32Array(gray.length),v=new Float32Array(9);
+ for(let y=1;y<h-1;y++)for(let x=1;x<w-1;x++){
+  let k=0;for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++)v[k++]=gray[(y+dy)*w+x+dx];
+  v.sort();out[y*w+x]=v[4];
+ }
+ for(let x=0;x<w;x++){out[x]=gray[x];out[(h-1)*w+x]=gray[(h-1)*w+x]}
+ for(let y=0;y<h;y++){out[y*w]=gray[y*w];out[y*w+w-1]=gray[y*w+w-1]}
+ return out;
+}
+function edgeAcutance(gray,w,h,x0=0,y0=0,x1=w,y1=h){
+ const roiW=x1-x0,roiH=y1-y0;if(roiW<3||roiH<3)return 0;
+ const clean=medianBlur3(gray,w,h),magnitudes=[];
+ for(let y=Math.max(1,y0);y<Math.min(h-1,y1);y++)for(let x=Math.max(1,x0);x<Math.min(w-1,x1);x++){
+  const p=y*w+x;
+  const gx=-clean[p-w-1]+clean[p-w+1]-2*clean[p-1]+2*clean[p+1]-clean[p+w-1]+clean[p+w+1];
+  const gy=-clean[p-w-1]-2*clean[p-w]-clean[p-w+1]+clean[p+w-1]+2*clean[p+w]+clean[p+w+1];
+  const mag=Math.sqrt(gx*gx+gy*gy);if(mag>15)magnitudes.push(mag);
+ }
+ if(magnitudes.length<25)return 0;
+ magnitudes.sort((a,b)=>a-b);
+ return magnitudes[Math.min(magnitudes.length-1,Math.floor((magnitudes.length-1)*.9))];
+}
+function perceptualHashFromCanvas(file){
+ return new Promise((resolve,reject)=>{
+  const url=URL.createObjectURL(file),img=new Image();
+  img.onload=()=>{
+   try{
+    const c=document.createElement('canvas');c.width=32;c.height=32;const ctx=c.getContext('2d',{willReadFrequently:true});
+    ctx.drawImage(img,0,0,32,32);const d=ctx.getImageData(0,0,32,32).data;URL.revokeObjectURL(url);
+    const gray=new Float64Array(1024);
+    for(let i=0,p=0;i<d.length;i+=4,p++)gray[p]=.299*d[i]+.587*d[i+1]+.114*d[i+2];
+    const cos=Array.from({length:8},(_,u)=>Float64Array.from({length:32},(_,x)=>Math.cos((2*x+1)*u*Math.PI/64)));
+    const coeff=[];
+    for(let v=0;v<8;v++)for(let u=0;u<8;u++){
+     if(u===0&&v===0)continue;
+     let sum=0;for(let y=0;y<32;y++)for(let x=0;x<32;x++)sum+=gray[y*32+x]*cos[u][x]*cos[v][y];
+     const au=u===0?Math.sqrt(1/32):Math.sqrt(2/32),av=v===0?Math.sqrt(1/32):Math.sqrt(2/32);
+     coeff.push(sum*au*av);
+    }
+    const sorted=[...coeff].sort((a,b)=>a-b),median=sorted[Math.floor(sorted.length/2)];
+    resolve(coeff.map(v=>v>median?'1':'0').join(''));
+   }catch(e){URL.revokeObjectURL(url);reject(e)}
+  };
+  img.onerror=()=>{URL.revokeObjectURL(url);reject(new Error('Impossibile creare l’hash percettivo'))};img.src=url;
+ });
+}
 async function analyzeItem(item){
  try{
   const {ctx,w,h}=await imageCanvas(item.file),data=ctx.getImageData(0,0,w,h).data;
   const gray=new Float32Array(w*h);let dark=0,bright=0;
   for(let i=0,p=0;i<data.length;i+=4,p++){const v=.299*data[i]+.587*data[i+1]+.114*data[i+2];gray[p]=v;if(v<12)dark++;if(v>245)bright++}
-  let edgeSum=0,edgeCount=0;const centerX0=Math.floor(w*.25),centerX1=Math.ceil(w*.75),centerY0=Math.floor(h*.25),centerY1=Math.ceil(h*.75);
-  let centerSum=0,centerCount=0;
-  for(let y=1;y<h-1;y++)for(let x=1;x<w-1;x++){
-   const p=y*w+x,gx=-gray[p-w-1]+gray[p-w+1]-2*gray[p-1]+2*gray[p+1]-gray[p+w-1]+gray[p+w+1],gy=-gray[p-w-1]-2*gray[p-w]-gray[p-w+1]+gray[p+w-1]+2*gray[p+w]+gray[p+w+1],mag=Math.sqrt(gx*gx+gy*gy)/4;
-   if(mag>15){edgeSum+=mag;edgeCount++;if(x>=centerX0&&x<centerX1&&y>=centerY0&&y<centerY1){centerSum+=mag;centerCount++}}
-  }
-  const full=edgeCount?edgeSum/edgeCount*3:0,center=centerCount?centerSum/centerCount*3:0;
+  const centerX0=Math.floor(w/4),centerX1=Math.ceil(3*w/4),centerY0=Math.floor(h/4),centerY1=Math.ceil(3*h/4);
+  const center=edgeAcutance(gray,w,h,centerX0,centerY0,centerX1,centerY1),full=edgeAcutance(gray,w,h);
   item.score=Math.round(center>=180?center:center*.7+full*.3);
   item.exposure=[];if(dark/(w*h)>.45)item.exposure.push('Molto scura?');if(bright/(w*h)>.30)item.exposure.push('Alte luci?');
-  const small=document.createElement('canvas');small.width=9;small.height=8;const sc=small.getContext('2d');const im=new Image();const u=URL.createObjectURL(item.file);await new Promise((res,rej)=>{im.onload=res;im.onerror=rej;im.src=u});sc.drawImage(im,0,0,9,8);URL.revokeObjectURL(u);const d=sc.getImageData(0,0,9,8).data;let bits='';for(let y=0;y<8;y++)for(let x=0;x<8;x++){const p=(y*9+x)*4,q=p+4;const a=.299*d[p]+.587*d[p+1]+.114*d[p+2],b=.299*d[q]+.587*d[q+1]+.114*d[q+2];bits+=a>b?'1':'0'}item.hash=bits;item.error='';
- }catch(e){item.score=null;item.error=e.message||'Impossibile analizzare'}
+  item.hash=await perceptualHashFromCanvas(item.file);item.error='';
+ }catch(e){item.score=null;item.hash=null;item.error=e.message||'Impossibile analizzare'}
 }
-function distance(a,b){if(!a||!b)return 99;let n=0;for(let i=0;i<a.length;i++)if(a[i]!==b[i])n++;return n}
+function distance(a,b){if(!a||!b||a.length!==b.length)return 999;let n=0;for(let i=0;i<a.length;i++)if(a[i]!==b[i])n++;return n}
 function groupSimilar(){
  items.forEach(x=>{x.similar=false;x.best=false});
  if(!$('markDuplicates').checked)return;
- const threshold=Number($('similarity').value),groups=[];
- for(const item of items){if(!item.hash)continue;let group=groups.find(g=>distance(g[0].hash,item.hash)<=threshold);if(group){group.push(item);group.forEach(x=>x.similar=true)}else groups.push([item])}
- for(const group of groups){if(group.length<2)continue;group.sort((a,b)=>(b.score??-1)-(a.score??-1));group[0].best=true}
+ const threshold=Number($('similarity').value),valid=items.map((item,index)=>({item,index})).filter(x=>x.item.hash);
+ const parent=valid.map((_,i)=>i);
+ function find(x){while(parent[x]!==x){parent[x]=parent[parent[x]];x=parent[x]}return x}
+ function union(a,b){a=find(a);b=find(b);if(a!==b)parent[b]=a}
+ for(let i=0;i<valid.length;i++)for(let j=i+1;j<valid.length;j++){
+  if(distance(valid[i].item.hash,valid[j].item.hash)<=threshold)union(i,j);
+ }
+ const groups=new Map();
+ valid.forEach((entry,i)=>{const root=find(i);if(!groups.has(root))groups.set(root,[]);groups.get(root).push(entry.item)});
+ for(const group of groups.values()){if(group.length<2)continue;group.sort((a,b)=>(b.score??-1)-(a.score??-1));group.forEach(x=>x.similar=true);group[0].best=true}
 }
 async function analyzeAll(){
  const pending=items.filter(x=>x.score===null&&!x.error);if(!items.length)return;
