@@ -15,8 +15,6 @@ main{width:min(100%,1120px);margin:0 auto}
 header{display:flex;align-items:center;justify-content:space-between;gap:18px;margin-bottom:32px}
 .brand{font-size:30px;line-height:1.2;font-weight:600;letter-spacing:-.8px;color:var(--fg);text-decoration:none}
 .brand span{color:var(--accent)}
-.theme{width:40px;height:21px;padding:3px;border:0;border-radius:99px;background:var(--accent);cursor:pointer;display:flex;align-items:center;flex-shrink:0}
-.theme:before{content:"";height:15px;width:15px;border-radius:50%;background:#14213D;transition:transform .2s}
 h1,h2,h3{font-weight:600;line-height:1.2}
 h1{font-size:27px;letter-spacing:-.6px;margin:0 0 8px}
 h2{font-size:20px;margin:0 0 14px}
@@ -65,21 +63,11 @@ hr{border:0;border-top:1px solid var(--line);margin:20px 0}
 @media(max-width:900px){.grid{grid-template-columns:repeat(3,minmax(0,1fr))}.preview{height:150px}}
 @media(max-width:620px){body{padding:22px 14px 32px}.brand{font-size:27px}.panel{padding:14px}.settings{grid-template-columns:1fr 1fr;gap:14px}.grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.preview{height:125px}.photo{padding:7px}.photo.selected{padding:6px}.toolbar{align-items:flex-start}}
 @media(max-width:380px){.settings{grid-template-columns:1fr}.grid{grid-template-columns:1fr 1fr}}
-:root.light{color-scheme:light;--bg:#f2f1ee;--panel:#fff;--panel2:#fff5e5;--fg:#292929;--muted:#656565;--line:rgba(20,33,61,.2);--soft:#333;--danger:#b3261e}
-:root.light .field input[type=number],:root.light .field select{background:#fff;color:#292929}
-:root.light .field select option{background:#fff;color:#292929}
-:root.light .preview{background:#e7e7e7}
-:root.light .photo{background:#fff}
-:root.light .photo.selected{background:#fff5e5}
-:root.light .theme:before{transform:translateX(17px)}
-:root.light .tag{background:rgba(20,33,61,.08);color:#333}
-:root.light .tag.warn{background:rgba(252,163,17,.18);color:#7a4b00}
-:root.light .tag.bad{background:rgba(179,38,30,.1);color:#9b1c13}
 </style>
 </head>
 <body>
 <main>
-<header><a class="brand" href="#" aria-label="Photo Selector">Photo <span>Selector</span></a><button class="theme" id="theme" type="button" role="switch" aria-label="Cambia tema" aria-checked="false"></button></header>
+<header><a class="brand" href="#" aria-label="Photo Selector">Photo <span>Selector</span></a></header>
 <h1>Seleziona le foto migliori</h1>
 <p class="intro">Apri una cartella, controlla le anteprime e seleziona gli scatti da conservare. L'analisi di nitidezza ed esposizione è indicativa: verifica sempre le foto prima di copiarle.</p>
 <section class="panel">
@@ -130,8 +118,6 @@ hr{border:0;border-top:1px solid var(--line);margin:20px 0}
 <script>
 (() => {
 const $=id=>document.getElementById(id), items=[];
-const root=document.documentElement;
-$('theme').addEventListener('click',()=>{const light=!root.classList.contains('light');root.classList.toggle('light',light);$('theme').setAttribute('aria-checked',String(light))});
 const folderPicker=$('folderPicker'),filePicker=$('filePicker'),drop=$('drop');
 $('chooseFolder').addEventListener('click',()=>folderPicker.click());
 $('chooseFiles').addEventListener('click',()=>filePicker.click());
