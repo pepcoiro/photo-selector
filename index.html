@@ -1,0 +1,252 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="Photo Selector: seleziona, controlla e organizza fotografie direttamente nel browser.">
+<title>Photo Selector</title>
+<style>
+@import url("https://fonts.googleapis.com/css2?family=Jost:wght@300;400;500;600;700&display=swap");
+:root{color-scheme:dark;--bg:#101010;--panel:#14213D;--panel2:#1a2d50;--fg:#FFFFFF;--muted:#c4c9d2;--line:rgba(229,229,229,.2);--accent:#FCA311;--soft:#E5E5E5;--danger:#ff8178}
+*{box-sizing:border-box}
+html{scrollbar-gutter:stable}
+body{margin:0;padding:30px 22px 40px;background:var(--bg);color:var(--fg);font-family:"Jost",sans-serif;font-size:16px;line-height:1.55}
+main{width:min(100%,1120px);margin:0 auto}
+header{display:flex;align-items:center;justify-content:space-between;gap:18px;margin-bottom:32px}
+.brand{font-size:30px;line-height:1.2;font-weight:600;letter-spacing:-.8px;color:var(--fg);text-decoration:none}
+.brand span{color:var(--accent)}
+.theme{width:40px;height:21px;padding:3px;border:0;border-radius:99px;background:var(--accent);cursor:pointer;display:flex;align-items:center;flex-shrink:0}
+.theme:before{content:"";height:15px;width:15px;border-radius:50%;background:#14213D;transition:transform .2s}
+h1,h2,h3{font-weight:600;line-height:1.2}
+h1{font-size:27px;letter-spacing:-.6px;margin:0 0 8px}
+h2{font-size:20px;margin:0 0 14px}
+p{margin:0 0 14px}
+.intro{color:var(--muted);max-width:780px;margin-bottom:24px}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:20px;margin:18px 0}
+.actions{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.btn{font:500 15px "Jost",sans-serif;border:1px solid var(--accent);border-radius:5px;background:var(--accent);color:#111;padding:9px 14px;cursor:pointer;transition:filter .15s,opacity .15s}
+.btn:hover{filter:brightness(1.07)}
+.btn:disabled{opacity:.4;cursor:default}
+.btn.alt{background:transparent;color:var(--fg);border-color:rgba(229,229,229,.4)}
+.btn.ghost{background:transparent;color:var(--accent);border-color:var(--accent)}
+.drop{border:1px dashed rgba(252,163,17,.65);border-radius:8px;padding:24px;text-align:center;background:rgba(0,0,0,.12);transition:background .15s,border-color .15s}
+.drop.drag{background:rgba(252,163,17,.1);border-color:var(--accent)}
+.drop p{color:var(--muted);margin-bottom:14px}
+.settings{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px;margin-top:20px}
+.field label{display:block;color:var(--muted);font-size:14px;margin-bottom:5px}
+.field input[type=number],.field select{width:100%;font:inherit;color:var(--fg);background:#101a2c;border:1px solid var(--line);border-radius:5px;padding:8px 9px}
+.field select option{background:#14213D;color:white}
+.checkline{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:14px;margin-top:9px}
+input[type=checkbox]{accent-color:var(--accent);width:16px;height:16px}
+.toolbar{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;margin:22px 0 14px}
+.toolbar .actions{gap:8px}
+.stats{color:var(--muted);font-size:14px}
+.progress{height:3px;background:rgba(229,229,229,.16);margin:14px 0 5px;border-radius:10px;overflow:hidden}
+.progress span{display:block;height:100%;width:0;background:var(--accent);transition:width .15s}
+.filters{display:flex;gap:8px;flex-wrap:wrap;margin:15px 0}
+.filter{border:1px solid var(--line);border-radius:99px;padding:5px 11px;color:var(--muted);background:transparent;font:400 14px "Jost",sans-serif;cursor:pointer}
+.filter.active{background:var(--accent);color:#111;border-color:var(--accent);font-weight:600}
+.grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
+.photo{min-width:0;background:var(--panel);border:1px solid rgba(229,229,229,.16);border-radius:8px;padding:9px;cursor:pointer;transition:border-color .15s,background .15s}
+.photo.selected{border:2px solid var(--accent);padding:8px;background:var(--panel2)}
+.preview{width:100%;height:165px;object-fit:contain;display:block;background:#080b11;border-radius:5px;margin-bottom:9px}
+.filename{font-size:14px;font-weight:500;line-height:1.3;overflow-wrap:anywhere;margin-bottom:6px}
+.tags{display:flex;gap:5px;flex-wrap:wrap;margin:7px 0}
+.tag{font-size:11px;line-height:1.4;border-radius:3px;padding:2px 5px;background:rgba(229,229,229,.12);color:var(--soft)}
+.tag.warn{background:rgba(252,163,17,.15);color:var(--accent)}
+.tag.bad{background:rgba(255,129,120,.13);color:#ffaaa4}
+.photo-meta{font-size:12px;color:var(--muted);line-height:1.45}
+.card-select{display:flex;gap:7px;align-items:center;color:var(--accent);font-size:13px;font-weight:600;margin-top:9px}
+.empty{text-align:center;color:var(--muted);padding:34px 10px}
+.status{font-size:14px;color:var(--muted);min-height:22px;margin-top:10px}
+.small{font-size:13px;color:var(--muted)}
+.hidden{display:none!important}
+hr{border:0;border-top:1px solid var(--line);margin:20px 0}
+@media(max-width:900px){.grid{grid-template-columns:repeat(3,minmax(0,1fr))}.preview{height:150px}}
+@media(max-width:620px){body{padding:22px 14px 32px}.brand{font-size:27px}.panel{padding:14px}.settings{grid-template-columns:1fr 1fr;gap:14px}.grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.preview{height:125px}.photo{padding:7px}.photo.selected{padding:6px}.toolbar{align-items:flex-start}}
+@media(max-width:380px){.settings{grid-template-columns:1fr}.grid{grid-template-columns:1fr 1fr}}
+:root.light{color-scheme:light;--bg:#f2f1ee;--panel:#fff;--panel2:#fff5e5;--fg:#292929;--muted:#656565;--line:rgba(20,33,61,.2);--soft:#333;--danger:#b3261e}
+:root.light .field input[type=number],:root.light .field select{background:#fff;color:#292929}
+:root.light .field select option{background:#fff;color:#292929}
+:root.light .preview{background:#e7e7e7}
+:root.light .photo{background:#fff}
+:root.light .photo.selected{background:#fff5e5}
+:root.light .theme:before{transform:translateX(17px)}
+:root.light .tag{background:rgba(20,33,61,.08);color:#333}
+:root.light .tag.warn{background:rgba(252,163,17,.18);color:#7a4b00}
+:root.light .tag.bad{background:rgba(179,38,30,.1);color:#9b1c13}
+</style>
+</head>
+<body>
+<main>
+<header><a class="brand" href="#" aria-label="Photo Selector">Photo <span>Selector</span></a><button class="theme" id="theme" type="button" role="switch" aria-label="Cambia tema" aria-checked="false"></button></header>
+<h1>Seleziona le foto migliori</h1>
+<p class="intro">Apri una cartella, controlla le anteprime e seleziona gli scatti da conservare. L'analisi di nitidezza ed esposizione è indicativa: verifica sempre le foto prima di copiarle.</p>
+<section class="panel">
+  <div class="drop" id="drop">
+    <p id="dropText">Trascina qui le foto oppure scegli da dove iniziare.</p>
+    <div class="actions" style="justify-content:center">
+      <button class="btn" id="chooseFolder" type="button">Apri cartella foto</button>
+      <button class="btn alt" id="chooseFiles" type="button">Scegli immagini</button>
+    </div>
+    <input id="folderPicker" type="file" accept="image/*" webkitdirectory multiple hidden>
+    <input id="filePicker" type="file" accept="image/*" multiple hidden>
+  </div>
+  <div class="settings">
+    <div class="field"><label for="threshold">Segnala sotto (nitidezza)</label><input id="threshold" type="number" min="0" max="1000" step="10" value="180"><label class="checkline"><input id="autoAnalyze" type="checkbox" checked> Analizza all'apertura</label></div>
+    <div class="field"><label for="similarity">Sensibilità foto simili</label><select id="similarity"><option value="5">Alta (più selettiva)</option><option value="8" selected>Bilanciata</option><option value="11">Bassa (più gruppi)</option></select><label class="checkline"><input id="markDuplicates" type="checkbox" checked> Evidenzia foto simili</label></div>
+    <div class="field"><label for="sort">Ordina per</label><select id="sort"><option value="name">Nome file</option><option value="sharpness">Nitidezza</option><option value="size">Dimensione file</option></select><label class="checkline"><input id="onlyReview" type="checkbox"> Solo da controllare / simili</label></div>
+  </div>
+  <div class="toolbar">
+    <div class="stats" id="stats" aria-live="polite">Nessuna immagine selezionata.</div>
+    <div class="actions">
+      <button class="btn alt" id="analyze" type="button" disabled>Analizza foto</button>
+      <button class="btn alt" id="selectGood" type="button" disabled>Seleziona foto buone</button>
+      <button class="btn alt" id="invert" type="button" disabled>Inverti selezione</button>
+      <button class="btn ghost" id="clear" type="button" disabled>Azzera</button>
+    </div>
+  </div>
+  <div class="progress"><span id="progress"></span></div>
+  <div class="status" id="status" aria-live="polite"></div>
+</section>
+<section>
+  <div class="filters" id="filters">
+    <button class="filter active" data-filter="all">Tutte</button>
+    <button class="filter" data-filter="selected">Selezionate</button>
+    <button class="filter" data-filter="review">Da controllare</button>
+    <button class="filter" data-filter="similar">Foto simili</button>
+  </div>
+  <div class="grid" id="grid"></div>
+  <div class="empty" id="empty">Scegli una cartella per visualizzare le foto.</div>
+</section>
+<section class="panel hidden" id="exportPanel">
+  <h2>Esporta selezione</h2>
+  <p class="small">La copia viene effettuata nel browser, se supportato. Gli originali non vengono eliminati né modificati.</p>
+  <div class="actions"><button class="btn" id="copyFiles" type="button">Copia selezionate in una cartella…</button><button class="btn alt" id="downloadFiles" type="button">Scarica selezionate (ZIP)</button></div>
+  <div class="status" id="exportStatus" aria-live="polite"></div>
+</section>
+<p class="small">Privacy: le foto vengono elaborate localmente nel browser, non caricate su un server. Questo prototipo supporta i formati che il browser riesce a decodificare; TIFF e RAW potrebbero non essere visualizzabili. L'analisi non sostituisce il controllo visivo.</p>
+</main>
+<script>
+(() => {
+const $=id=>document.getElementById(id), items=[];
+const root=document.documentElement;
+$('theme').addEventListener('click',()=>{const light=!root.classList.contains('light');root.classList.toggle('light',light);$('theme').setAttribute('aria-checked',String(light))});
+const folderPicker=$('folderPicker'),filePicker=$('filePicker'),drop=$('drop');
+$('chooseFolder').addEventListener('click',()=>folderPicker.click());
+$('chooseFiles').addEventListener('click',()=>filePicker.click());
+folderPicker.addEventListener('change',e=>{addFiles([...e.target.files]);folderPicker.value=''});
+filePicker.addEventListener('change',e=>{addFiles([...e.target.files]);filePicker.value=''});
+drop.addEventListener('dragover',e=>{e.preventDefault();drop.classList.add('drag')});
+drop.addEventListener('dragleave',()=>drop.classList.remove('drag'));
+drop.addEventListener('drop',e=>{e.preventDefault();drop.classList.remove('drag');addFiles([...e.dataTransfer.files])});
+$('analyze').addEventListener('click',()=>analyzeAll());
+$('selectGood').addEventListener('click',selectGood);
+$('invert').addEventListener('click',()=>{items.forEach(x=>x.selected=!x.selected);render()});
+$('clear').addEventListener('click',clearAll);
+$('onlyReview').addEventListener('change',render);
+$('sort').addEventListener('change',render);
+$('markDuplicates').addEventListener('change',()=>{if(items.length)analyzeAll()});
+$('similarity').addEventListener('change',()=>{if(items.length)groupSimilar();render()});
+$('threshold').addEventListener('change',render);
+$('filters').addEventListener('click',e=>{const b=e.target.closest('[data-filter]');if(!b)return;document.querySelectorAll('.filter').forEach(x=>x.classList.toggle('active',x===b));render()});
+$('copyFiles').addEventListener('click',copySelected);
+$('downloadFiles').addEventListener('click',downloadZip);
+function addFiles(files){
+ const accepted=files.filter(f=>f.type.startsWith('image/')||/\.(jpe?g|png|webp|bmp|gif|tiff?)$/i.test(f.name));
+ let added=0;
+ for(const file of accepted){if(items.some(x=>x.file.name===file.name&&x.file.size===file.size&&x.file.lastModified===file.lastModified))continue;items.push({file,url:URL.createObjectURL(file),selected:false,score:null,exposure:[],hash:null,similar:false,best:false,error:''});added++}
+ $('dropText').textContent=items.length?'Cartella caricata: puoi aggiungere altre immagini o trascinarle qui.':'Trascina qui le foto oppure scegli da dove iniziare.';
+ $('status').textContent=accepted.length&&!added?'Le immagini selezionate sono già presenti.':files.length&&!accepted.length?'Nessun file immagine riconosciuto.':accepted.length&&!$('autoAnalyze').checked?'Immagini caricate. Premi “Analizza foto” quando vuoi.':'';
+ render();
+ if(added&&$('autoAnalyze').checked)analyzeAll();
+}
+function clearAll(){items.forEach(x=>URL.revokeObjectURL(x.url));items.splice(0);$('progress').style.width='0';$('status').textContent='';$('dropText').textContent='Trascina qui le foto oppure scegli da dove iniziare.';render()}
+function fmt(n){return n<1024?n+' B':n<1048576?(n/1024).toFixed(1)+' KB':(n/1048576).toFixed(1)+' MB'}
+function imageCanvas(file){
+ return new Promise((resolve,reject)=>{const url=URL.createObjectURL(file),img=new Image();img.onload=()=>{const scale=Math.min(1,800/img.naturalWidth,600/img.naturalHeight),w=Math.max(1,Math.round(img.naturalWidth*scale)),h=Math.max(1,Math.round(img.naturalHeight*scale)),canvas=document.createElement('canvas');canvas.width=w;canvas.height=h;const ctx=canvas.getContext('2d',{willReadFrequently:true});ctx.drawImage(img,0,0,w,h);URL.revokeObjectURL(url);resolve({canvas,ctx,w,h})};img.onerror=()=>{URL.revokeObjectURL(url);reject(new Error('Formato non leggibile dal browser'))};img.src=url});
+}
+async function analyzeItem(item){
+ try{
+  const {ctx,w,h}=await imageCanvas(item.file),data=ctx.getImageData(0,0,w,h).data;
+  const gray=new Float32Array(w*h);let dark=0,bright=0;
+  for(let i=0,p=0;i<data.length;i+=4,p++){const v=.299*data[i]+.587*data[i+1]+.114*data[i+2];gray[p]=v;if(v<12)dark++;if(v>245)bright++}
+  let edgeSum=0,edgeCount=0;const centerX0=Math.floor(w*.25),centerX1=Math.ceil(w*.75),centerY0=Math.floor(h*.25),centerY1=Math.ceil(h*.75);
+  let centerSum=0,centerCount=0;
+  for(let y=1;y<h-1;y++)for(let x=1;x<w-1;x++){
+   const p=y*w+x,gx=-gray[p-w-1]+gray[p-w+1]-2*gray[p-1]+2*gray[p+1]-gray[p+w-1]+gray[p+w+1],gy=-gray[p-w-1]-2*gray[p-w]-gray[p-w+1]+gray[p+w-1]+2*gray[p+w]+gray[p+w+1],mag=Math.sqrt(gx*gx+gy*gy)/4;
+   if(mag>15){edgeSum+=mag;edgeCount++;if(x>=centerX0&&x<centerX1&&y>=centerY0&&y<centerY1){centerSum+=mag;centerCount++}}
+  }
+  const full=edgeCount?edgeSum/edgeCount*3:0,center=centerCount?centerSum/centerCount*3:0;
+  item.score=Math.round(center>=180?center:center*.7+full*.3);
+  item.exposure=[];if(dark/(w*h)>.45)item.exposure.push('Molto scura?');if(bright/(w*h)>.30)item.exposure.push('Alte luci?');
+  const small=document.createElement('canvas');small.width=9;small.height=8;const sc=small.getContext('2d');const im=new Image();const u=URL.createObjectURL(item.file);await new Promise((res,rej)=>{im.onload=res;im.onerror=rej;im.src=u});sc.drawImage(im,0,0,9,8);URL.revokeObjectURL(u);const d=sc.getImageData(0,0,9,8).data;let bits='';for(let y=0;y<8;y++)for(let x=0;x<8;x++){const p=(y*9+x)*4,q=p+4;const a=.299*d[p]+.587*d[p+1]+.114*d[p+2],b=.299*d[q]+.587*d[q+1]+.114*d[q+2];bits+=a>b?'1':'0'}item.hash=bits;item.error='';
+ }catch(e){item.score=null;item.error=e.message||'Impossibile analizzare'}
+}
+function distance(a,b){if(!a||!b)return 99;let n=0;for(let i=0;i<a.length;i++)if(a[i]!==b[i])n++;return n}
+function groupSimilar(){
+ items.forEach(x=>{x.similar=false;x.best=false});
+ if(!$('markDuplicates').checked)return;
+ const threshold=Number($('similarity').value),groups=[];
+ for(const item of items){if(!item.hash)continue;let group=groups.find(g=>distance(g[0].hash,item.hash)<=threshold);if(group){group.push(item);group.forEach(x=>x.similar=true)}else groups.push([item])}
+ for(const group of groups){if(group.length<2)continue;group.sort((a,b)=>(b.score??-1)-(a.score??-1));group[0].best=true}
+}
+async function analyzeAll(){
+ const pending=items.filter(x=>x.score===null&&!x.error);if(!items.length)return;
+ $('analyze').disabled=true;$('selectGood').disabled=true;$('status').textContent='Analisi in corso…';let done=0;
+ for(const item of items){if(item.score===null&&!item.error)await analyzeItem(item);done++;$('progress').style.width=(done/items.length*100)+'%';$('status').textContent='Analisi: '+done+' di '+items.length;render()}
+ groupSimilar();render();$('analyze').disabled=false;$('selectGood').disabled=false;$('status').textContent='Analisi completata. Controlla i risultati prima di esportare.';
+}
+function selectGood(){
+ const threshold=Number($('threshold').value),groups=new Set();
+ items.forEach(x=>x.selected=false);
+ for(const x of items){if(x.similar){const key=items.filter(y=>y.similar&&distance(x.hash,y.hash)<=Number($('similarity').value)).map(y=>items.indexOf(y)).sort((a,b)=>a-b).join(',');if(groups.has(key))continue;groups.add(key);const candidates=items.filter(y=>y.similar&&distance(x.hash,y.hash)<=Number($('similarity').value));const best=candidates.sort((a,b)=>(b.score??-1)-(a.score??-1))[0];if(best&&best.score!==null&&best.score>=threshold&&!best.exposure.length)best.selected=true}
+  else if(x.score!==null&&x.score>=threshold&&!x.exposure.length)x.selected=true;
+ }
+ render();$('status').textContent='Selezione iniziale pronta: controlla manualmente ogni foto.';
+}
+function render(){
+ const grid=$('grid'),empty=$('empty');grid.replaceChildren();
+ const filter=document.querySelector('.filter.active')?.dataset.filter||'all',reviewOnly=$('onlyReview').checked,threshold=Number($('threshold').value);
+ let sorted=[...items];if($('sort').value==='sharpness')sorted.sort((a,b)=>(b.score??-1)-(a.score??-1));else if($('sort').value==='size')sorted.sort((a,b)=>b.file.size-a.file.size);else sorted.sort((a,b)=>a.file.name.localeCompare(b.file.name,'it'));
+ const visible=sorted.filter(x=>(!reviewOnly||x.score===null||x.score<threshold||x.exposure.length||x.similar)&&(filter==='all'||filter==='selected'&&x.selected||filter==='review'&&(x.score===null||x.score<threshold||x.exposure.length)||filter==='similar'&&x.similar));
+ for(const item of visible){
+  const card=document.createElement('article');card.className='photo'+(item.selected?' selected':'');card.tabIndex=0;card.setAttribute('aria-label',item.file.name+(item.selected?', selezionata':', non selezionata'));
+  const img=document.createElement('img');img.className='preview';img.src=item.url;img.alt=item.file.name;img.loading='lazy';img.addEventListener('dblclick',()=>window.open(item.url,'_blank','noopener'));
+  const name=document.createElement('div');name.className='filename';name.textContent=item.file.webkitRelativePath||item.file.name;
+  const tags=document.createElement('div');tags.className='tags';
+  if(item.score===null){const t=document.createElement('span');t.className='tag';t.textContent=item.error?'Non leggibile':'Da analizzare';tags.append(t)}
+  else {const t=document.createElement('span');t.className='tag '+(item.score<threshold?'warn':'');t.textContent='Nitidezza '+item.score;tags.append(t);if(item.score<threshold){const b=document.createElement('span');b.className='tag warn';b.textContent='Possibile sfocatura';tags.append(b)}}
+  item.exposure.forEach(s=>{const t=document.createElement('span');t.className='tag bad';t.textContent=s;tags.append(t)});
+  if(item.similar){const t=document.createElement('span');t.className='tag warn';t.textContent=item.best?'Simile · candidata migliore':'Foto simile';tags.append(t)}
+  const meta=document.createElement('div');meta.className='photo-meta';meta.textContent=fmt(item.file.size)+(item.file.type?' · '+item.file.type.replace('image/','').toUpperCase():'');
+  const select=document.createElement('label');select.className='card-select';const cb=document.createElement('input');cb.type='checkbox';cb.checked=item.selected;cb.addEventListener('click',e=>e.stopPropagation());cb.addEventListener('change',()=>{item.selected=cb.checked;render()});select.append(cb,document.createTextNode('Seleziona'));
+  card.append(img,name,tags,meta,select);card.addEventListener('click',e=>{if(e.target.closest('label'))return;item.selected=!item.selected;render()});card.addEventListener('keydown',e=>{if(e.key===' '||e.key==='Enter'){e.preventDefault();item.selected=!item.selected;render()}});
+  grid.append(card);
+ }
+ empty.classList.toggle('hidden',visible.length>0);empty.textContent=items.length?'Nessuna foto corrisponde al filtro.':'Scegli una cartella per visualizzare le foto.';
+ const selected=items.filter(x=>x.selected).length;$('stats').textContent=items.length+' foto · '+selected+' selezionate'+(items.some(x=>x.score!==null)?' · '+items.filter(x=>x.score!==null&&x.score<threshold).length+' da controllare':'');
+ $('analyze').disabled=!items.length;$('selectGood').disabled=!items.some(x=>x.score!==null);$('invert').disabled=!items.length;$('clear').disabled=!items.length;$('exportPanel').classList.toggle('hidden',selected===0);
+}
+async function copySelected(){
+ const chosen=items.filter(x=>x.selected);if(!chosen.length)return;
+ if(!window.showDirectoryPicker){$('exportStatus').textContent='Il browser non supporta la scelta di una cartella di destinazione. Usa lo ZIP.';return}
+ try{const dir=await window.showDirectoryPicker({mode:'readwrite'});let copied=0;
+  for(const item of chosen){let name=item.file.name,base=name,last=1;while(true){try{await dir.getFileHandle(name);const dot=base.lastIndexOf('.');name=dot>0?base.slice(0,dot)+'_'+last+base.slice(dot):base+'_'+last;last++}catch{break}}
+   const handle=await dir.getFileHandle(name,{create:true}),w=await handle.createWritable();await w.write(item.file);await w.close();copied++}
+  $('exportStatus').textContent='Copiate '+copied+' foto. Gli originali sono rimasti invariati.';
+ }catch(e){$('exportStatus').textContent=e.name==='AbortError'?'Operazione annullata.':'Copia non riuscita: '+e.message}
+}
+async function downloadZip(){
+ const chosen=items.filter(x=>x.selected);if(!chosen.length)return;$('exportStatus').textContent='Preparo lo ZIP…';
+ try{
+  if(!window.JSZip)await new Promise((resolve,reject)=>{const s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';s.onload=resolve;s.onerror=reject;document.head.append(s)});
+  const zip=new JSZip(),used=new Set();chosen.forEach(x=>{let name=x.file.name,n=1;while(used.has(name.toLowerCase())){const dot=x.file.name.lastIndexOf('.');name=x.file.name.slice(0,dot)+'_'+n+++x.file.name.slice(dot)}used.add(name.toLowerCase());zip.file(name,x.file)});
+  const blob=await zip.generateAsync({type:'blob'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='photo-selector-selezione.zip';a.click();setTimeout(()=>URL.revokeObjectURL(url),1500);$('exportStatus').textContent='ZIP pronto.';
+ }catch(e){$('exportStatus').textContent='Non è stato possibile creare lo ZIP. Controlla la connessione e riprova.'}
+}
+render();
+})();
+</script>
+</body>
+</html>
