@@ -115,7 +115,7 @@ hr{border:0;border-top:1px solid var(--line);margin:20px 0}
 </section>
 <p class="small">Privacy: le foto vengono elaborate localmente nel browser, non caricate su un server. Questo prototipo supporta i formati che il browser riesce a decodificare; TIFF e RAW potrebbero non essere visualizzabili. L'analisi non sostituisce il controllo visivo.</p>
 </main>
-<script src="https://unpkg.com/imagehash-web/dist/imagehash-web.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/phash-js/dist/phash.js"></script>
 <script>
 (() => {
 const $=id=>document.getElementById(id), items=[];
@@ -177,14 +177,11 @@ function edgeAcutance(gray,w,h,x0=0,y0=0,x1=w,y1=h){
  return magnitudes[Math.min(magnitudes.length-1,Math.floor((magnitudes.length-1)*.9))];
 }
 async function perceptualHashFromCanvas(file){
- if(typeof phash!=='function')throw new Error('Libreria di confronto immagini non caricata. Controlla la connessione e riprova.');
- const url=URL.createObjectURL(file);
- try{
-  const img=new Image();
-  await new Promise((resolve,reject)=>{img.onload=resolve;img.onerror=()=>reject(new Error('Immagine non leggibile per il confronto'));img.src=url});
-  // Libreria imagehash-web: pHash collaudato, con distanza di Hamming nativa.
-  return await phash(img,8);
- }finally{URL.revokeObjectURL(url)}
+ if(!window.pHash||typeof window.pHash.hash!=='function')throw new Error('Libreria pHash non caricata: verifica la connessione.');
+ // phash-js accetta direttamente il File locale e restituisce un hash confrontabile.
+ const result=await window.pHash.hash(file);
+ if(!result||typeof result.toBinary!=='function')throw new Error('La libreria pHash non ha restituito un hash valido.');
+ return result.toBinary();
 }
 async function analyzeItem(item){
  try{
@@ -202,7 +199,11 @@ async function analyzeItem(item){
  try{item.hash=await perceptualHashFromCanvas(item.file);item.hashError=''}
  catch(e){item.hash=null;item.hashError=e.message||'Confronto tra foto non riuscito'}
 }
-function distance(a,b){if(!a||!b)return 999;try{return a.hammingDistance(b)}catch{return 999}}
+function distance(a,b){
+ if(!a||!b||a.length!==b.length)return 999;
+ let d=0;for(let i=0;i<a.length;i++)if(a[i]!==b[i])d++;
+ return d;
+}
 function groupSimilar(){
  items.forEach(x=>{x.similar=false;x.best=false;x.duplicateGroup=-1});
  if(!$('markDuplicates').checked)return;
