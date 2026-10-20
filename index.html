@@ -142,7 +142,7 @@ $('downloadFiles').addEventListener('click',downloadZip);
 function addFiles(files){
  const accepted=files.filter(f=>f.type.startsWith('image/')||/\.(jpe?g|png|webp|bmp|gif|tiff?)$/i.test(f.name));
  let added=0;
- for(const file of accepted){if(items.some(x=>x.file.name===file.name&&x.file.size===file.size&&x.file.lastModified===file.lastModified))continue;items.push({file,url:URL.createObjectURL(file),selected:false,score:null,exposure:[],hash:null,similar:false,best:false,duplicateGroup:-1,error:''});added++}
+ for(const file of accepted){if(items.some(x=>x.file.name===file.name&&x.file.size===file.size&&x.file.lastModified===file.lastModified))continue;items.push({file,url:URL.createObjectURL(file),selected:false,score:null,exposure:[],hash:null,hashError:'',similar:false,best:false,duplicateGroup:-1,error:''});added++}
  $('dropText').textContent=items.length?'Cartella caricata: puoi aggiungere altre immagini o trascinarle qui.':'Trascina qui le foto oppure scegli da dove iniziare.';
  $('status').textContent=accepted.length&&!added?'Le immagini selezionate sono già presenti.':files.length&&!accepted.length?'Nessun file immagine riconosciuto.':accepted.length&&!$('autoAnalyze').checked?'Immagini caricate. Premi “Analizza foto” quando vuoi.':'';
  render();
@@ -195,8 +195,12 @@ async function analyzeItem(item){
   const center=edgeAcutance(gray,w,h,centerX0,centerY0,centerX1,centerY1),full=edgeAcutance(gray,w,h);
   item.score=Math.round(center>=180?center:center*.7+full*.3);
   item.exposure=[];if(dark/(w*h)>.45)item.exposure.push('Molto scura?');if(bright/(w*h)>.30)item.exposure.push('Alte luci?');
-  item.hash=await perceptualHashFromCanvas(item.file);item.error='';
- }catch(e){item.score=null;item.hash=null;item.error=e.message||'Impossibile analizzare'}
+  item.error='';
+ }catch(e){item.score=null;item.hash=null;item.error=e.message||'Impossibile leggere l’immagine';item.hashError='';return}
+ // Il confronto tra foto è indipendente dalla nitidezza: se la libreria non è
+ // disponibile, manteniamo il punteggio e segnaliamo soltanto il confronto fallito.
+ try{item.hash=await perceptualHashFromCanvas(item.file);item.hashError=''}
+ catch(e){item.hash=null;item.hashError=e.message||'Confronto tra foto non riuscito'}
 }
 function distance(a,b){if(!a||!b)return 999;try{return a.hammingDistance(b)}catch{return 999}}
 function groupSimilar(){
@@ -257,8 +261,9 @@ function render(){
   const img=document.createElement('img');img.className='preview';img.src=item.url;img.alt=item.file.name;img.loading='lazy';img.addEventListener('dblclick',()=>window.open(item.url,'_blank','noopener'));
   const name=document.createElement('div');name.className='filename';name.textContent=item.file.webkitRelativePath||item.file.name;
   const tags=document.createElement('div');tags.className='tags';
-  if(item.score===null){const t=document.createElement('span');t.className='tag';t.textContent=item.error?'Non leggibile':'Da analizzare';tags.append(t)}
+  if(item.score===null){const t=document.createElement('span');t.className='tag bad';t.textContent=item.error?'Non leggibile':'Da analizzare';if(item.error)t.title=item.error;tags.append(t)}
   else {const t=document.createElement('span');t.className='tag '+(item.score<threshold?'warn':'');t.textContent='Nitidezza '+item.score;tags.append(t);if(item.score<threshold){const b=document.createElement('span');b.className='tag warn';b.textContent='Possibile sfocatura';tags.append(b)}}
+  if(item.hashError){const t=document.createElement('span');t.className='tag warn';t.textContent='Confronto non disponibile';t.title=item.hashError;tags.append(t)}
   item.exposure.forEach(s=>{const t=document.createElement('span');t.className='tag bad';t.textContent=s;tags.append(t)});
   if(item.similar){const t=document.createElement('span');t.className='tag warn';t.textContent=item.best?'Simile · candidata migliore':'Foto simile';tags.append(t)}
   const meta=document.createElement('div');meta.className='photo-meta';meta.textContent=fmt(item.file.size)+(item.file.type?' · '+item.file.type.replace('image/','').toUpperCase():'');
