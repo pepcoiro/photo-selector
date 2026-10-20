@@ -115,6 +115,7 @@ hr{border:0;border-top:1px solid var(--line);margin:20px 0}
 </section>
 <p class="small">Privacy: le foto vengono elaborate localmente nel browser, non caricate su un server. Questo prototipo supporta i formati che il browser riesce a decodificare; TIFF e RAW potrebbero non essere visualizzabili. L'analisi non sostituisce il controllo visivo.</p>
 </main>
+<script src="https://unpkg.com/imagehash-web/dist/imagehash-web.min.js"></script>
 <script>
 (() => {
 const $=id=>document.getElementById(id), items=[];
@@ -175,29 +176,15 @@ function edgeAcutance(gray,w,h,x0=0,y0=0,x1=w,y1=h){
  magnitudes.sort((a,b)=>a-b);
  return magnitudes[Math.min(magnitudes.length-1,Math.floor((magnitudes.length-1)*.9))];
 }
-function perceptualHashFromCanvas(file){
- return new Promise((resolve,reject)=>{
-  const url=URL.createObjectURL(file),img=new Image();
-  img.onload=()=>{
-   try{
-    const c=document.createElement('canvas');c.width=32;c.height=32;const ctx=c.getContext('2d',{willReadFrequently:true});
-    ctx.drawImage(img,0,0,32,32);const d=ctx.getImageData(0,0,32,32).data;URL.revokeObjectURL(url);
-    const gray=new Float64Array(1024);
-    for(let i=0,p=0;i<d.length;i+=4,p++)gray[p]=.299*d[i]+.587*d[i+1]+.114*d[i+2];
-    const cos=Array.from({length:8},(_,u)=>Float64Array.from({length:32},(_,x)=>Math.cos((2*x+1)*u*Math.PI/64)));
-    const coeff=[];
-    for(let v=0;v<8;v++)for(let u=0;u<8;u++){
-     if(u===0&&v===0)continue;
-     let sum=0;for(let y=0;y<32;y++)for(let x=0;x<32;x++)sum+=gray[y*32+x]*cos[u][x]*cos[v][y];
-     const au=u===0?Math.sqrt(1/32):Math.sqrt(2/32),av=v===0?Math.sqrt(1/32):Math.sqrt(2/32);
-     coeff.push(sum*au*av);
-    }
-    const sorted=[...coeff].sort((a,b)=>a-b),median=sorted[Math.floor(sorted.length/2)];
-    resolve(coeff.map(v=>v>median?'1':'0').join(''));
-   }catch(e){URL.revokeObjectURL(url);reject(e)}
-  };
-  img.onerror=()=>{URL.revokeObjectURL(url);reject(new Error('Impossibile creare l’hash percettivo'))};img.src=url;
- });
+async function perceptualHashFromCanvas(file){
+ if(typeof phash!=='function')throw new Error('Libreria di confronto immagini non caricata. Controlla la connessione e riprova.');
+ const url=URL.createObjectURL(file);
+ try{
+  const img=new Image();
+  await new Promise((resolve,reject)=>{img.onload=resolve;img.onerror=()=>reject(new Error('Immagine non leggibile per il confronto'));img.src=url});
+  // Libreria imagehash-web: pHash collaudato, con distanza di Hamming nativa.
+  return await phash(img,8);
+ }finally{URL.revokeObjectURL(url)}
 }
 async function analyzeItem(item){
  try{
@@ -211,7 +198,7 @@ async function analyzeItem(item){
   item.hash=await perceptualHashFromCanvas(item.file);item.error='';
  }catch(e){item.score=null;item.hash=null;item.error=e.message||'Impossibile analizzare'}
 }
-function distance(a,b){if(!a||!b||a.length!==b.length)return 999;let n=0;for(let i=0;i<a.length;i++)if(a[i]!==b[i])n++;return n}
+function distance(a,b){if(!a||!b)return 999;try{return a.hammingDistance(b)}catch{return 999}}
 function groupSimilar(){
  items.forEach(x=>{x.similar=false;x.best=false;x.duplicateGroup=-1});
  if(!$('markDuplicates').checked)return;
