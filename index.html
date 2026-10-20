@@ -141,7 +141,7 @@ $('downloadFiles').addEventListener('click',downloadZip);
 function addFiles(files){
  const accepted=files.filter(f=>f.type.startsWith('image/')||/\.(jpe?g|png|webp|bmp|gif|tiff?)$/i.test(f.name));
  let added=0;
- for(const file of accepted){if(items.some(x=>x.file.name===file.name&&x.file.size===file.size&&x.file.lastModified===file.lastModified))continue;items.push({file,url:URL.createObjectURL(file),selected:false,score:null,exposure:[],hash:null,similar:false,best:false,error:''});added++}
+ for(const file of accepted){if(items.some(x=>x.file.name===file.name&&x.file.size===file.size&&x.file.lastModified===file.lastModified))continue;items.push({file,url:URL.createObjectURL(file),selected:false,score:null,exposure:[],hash:null,similar:false,best:false,duplicateGroup:-1,error:''});added++}
  $('dropText').textContent=items.length?'Cartella caricata: puoi aggiungere altre immagini o trascinarle qui.':'Trascina qui le foto oppure scegli da dove iniziare.';
  $('status').textContent=accepted.length&&!added?'Le immagini selezionate sono già presenti.':files.length&&!accepted.length?'Nessun file immagine riconosciuto.':accepted.length&&!$('autoAnalyze').checked?'Immagini caricate. Premi “Analizza foto” quando vuoi.':'';
  render();
@@ -213,18 +213,28 @@ async function analyzeItem(item){
 }
 function distance(a,b){if(!a||!b||a.length!==b.length)return 999;let n=0;for(let i=0;i<a.length;i++)if(a[i]!==b[i])n++;return n}
 function groupSimilar(){
- items.forEach(x=>{x.similar=false;x.best=false});
+ items.forEach(x=>{x.similar=false;x.best=false;x.duplicateGroup=-1});
  if(!$('markDuplicates').checked)return;
- const threshold=Number($('similarity').value),valid=items.map((item,index)=>({item,index})).filter(x=>x.item.hash);
- const parent=valid.map((_,i)=>i);
- function find(x){while(parent[x]!==x){parent[x]=parent[parent[x]];x=parent[x]}return x}
- function union(a,b){a=find(a);b=find(b);if(a!==b)parent[b]=a}
- for(let i=0;i<valid.length;i++)for(let j=i+1;j<valid.length;j++){
-  if(distance(valid[i].item.hash,valid[j].item.hash)<=threshold)union(i,j);
+ const threshold=Number($('similarity').value);
+ const valid=items.filter(x=>x.hash);
+ const used=new Set();let groupId=0;
+ // Raggruppamento greedy come nella versione Python: ogni foto viene confrontata
+ // con la prima foto non ancora assegnata, evitando gruppi concatenati troppo ampi.
+ for(let i=0;i<valid.length;i++){
+  const anchor=valid[i];if(used.has(anchor))continue;
+  const group=[anchor];
+  for(let j=i+1;j<valid.length;j++){
+   const candidate=valid[j];if(used.has(candidate))continue;
+   if(distance(anchor.hash,candidate.hash)<=threshold){
+    group.push(candidate);used.add(candidate);
+   }
+  }
+  if(group.length<2)continue;
+  used.add(anchor);
+  group.sort((a,b)=>(b.score??-1)-(a.score??-1));
+  group.forEach(x=>{x.similar=true;x.duplicateGroup=groupId});
+  group[0].best=true;groupId++;
  }
- const groups=new Map();
- valid.forEach((entry,i)=>{const root=find(i);if(!groups.has(root))groups.set(root,[]);groups.get(root).push(entry.item)});
- for(const group of groups.values()){if(group.length<2)continue;group.sort((a,b)=>(b.score??-1)-(a.score??-1));group.forEach(x=>x.similar=true);group[0].best=true}
 }
 async function analyzeAll(){
  const pending=items.filter(x=>x.score===null&&!x.error);if(!items.length)return;
@@ -233,12 +243,22 @@ async function analyzeAll(){
  groupSimilar();render();$('analyze').disabled=false;$('selectGood').disabled=false;$('status').textContent='Analisi completata. Controlla i risultati prima di esportare.';
 }
 function selectGood(){
- const threshold=Number($('threshold').value),groups=new Set();
+ const threshold=Number($('threshold').value);
  items.forEach(x=>x.selected=false);
- for(const x of items){if(x.similar){const key=items.filter(y=>y.similar&&distance(x.hash,y.hash)<=Number($('similarity').value)).map(y=>items.indexOf(y)).sort((a,b)=>a-b).join(',');if(groups.has(key))continue;groups.add(key);const candidates=items.filter(y=>y.similar&&distance(x.hash,y.hash)<=Number($('similarity').value));const best=candidates.sort((a,b)=>(b.score??-1)-(a.score??-1))[0];if(best&&best.score!==null&&best.score>=threshold&&!best.exposure.length)best.selected=true}
-  else if(x.score!==null&&x.score>=threshold&&!x.exposure.length)x.selected=true;
+ const bestByGroup=new Map();
+ for(const x of items){
+  if(x.similar&&x.duplicateGroup>=0){
+   const current=bestByGroup.get(x.duplicateGroup);
+   if(!current||(x.score??-1)>(current.score??-1))bestByGroup.set(x.duplicateGroup,x);
+  }
  }
- render();$('status').textContent='Selezione iniziale pronta: controlla manualmente ogni foto.';
+ for(const x of items){
+  if(x.similar&&x.duplicateGroup>=0){
+   const best=bestByGroup.get(x.duplicateGroup);
+   if(x===best&&x.score!==null&&x.score>=threshold&&!x.exposure.length&&!x.error)x.selected=true;
+  }else if(x.score!==null&&x.score>=threshold&&!x.exposure.length&&!x.error)x.selected=true;
+ }
+ render();$('status').textContent='Selezione iniziale pronta: per ogni gruppo è selezionata la foto con il punteggio di nitidezza più alto. Controlla manualmente prima di esportare.';
 }
 function render(){
  const grid=$('grid'),empty=$('empty');grid.replaceChildren();
