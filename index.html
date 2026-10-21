@@ -119,6 +119,7 @@ hr{border:0;border-top:1px solid var(--line);margin:20px 0}
 <script>
 (() => {
 const $=id=>document.getElementById(id), items=[];
+let running=false;
 const folderPicker=$('folderPicker'),filePicker=$('filePicker'),drop=$('drop');
 $('chooseFolder').addEventListener('click',()=>folderPicker.click());
 $('chooseFiles').addEventListener('click',()=>filePicker.click());
@@ -129,26 +130,27 @@ drop.addEventListener('dragleave',()=>drop.classList.remove('drag'));
 drop.addEventListener('drop',e=>{e.preventDefault();drop.classList.remove('drag');addFiles([...e.dataTransfer.files])});
 $('analyze').addEventListener('click',()=>analyzeAll());
 $('selectGood').addEventListener('click',selectGood);
-$('invert').addEventListener('click',()=>{items.forEach(x=>x.selected=!x.selected);render()});
+$('invert').addEventListener('click',invertVisible);
 $('clear').addEventListener('click',clearAll);
 $('onlyReview').addEventListener('change',render);
 $('sort').addEventListener('change',render);
 $('markDuplicates').addEventListener('change',()=>{if(items.length)analyzeAll()});
 $('similarity').addEventListener('change',()=>{if(items.length)groupSimilar();render()});
-$('threshold').addEventListener('change',render);
+$('threshold').addEventListener('input',render);
 $('filters').addEventListener('click',e=>{const b=e.target.closest('[data-filter]');if(!b)return;document.querySelectorAll('.filter').forEach(x=>x.classList.toggle('active',x===b));render()});
 $('copyFiles').addEventListener('click',copySelected);
 $('downloadFiles').addEventListener('click',downloadZip);
 function addFiles(files){
  const accepted=files.filter(f=>f.type.startsWith('image/')||/\.(jpe?g|png|webp|bmp|gif|tiff?)$/i.test(f.name));
+ const keys=new Set(items.map(x=>x.file.name+'|'+x.file.size+'|'+x.file.lastModified));
  let added=0;
- for(const file of accepted){if(items.some(x=>x.file.name===file.name&&x.file.size===file.size&&x.file.lastModified===file.lastModified))continue;items.push({file,url:URL.createObjectURL(file),selected:false,score:null,exposure:[],hash:null,hashError:'',similar:false,best:false,duplicateGroup:-1,error:''});added++}
+ for(const file of accepted){const key=file.name+'|'+file.size+'|'+file.lastModified;if(keys.has(key))continue;keys.add(key);items.push({file,url:URL.createObjectURL(file),selected:false,score:null,exposure:[],hash:null,hashError:'',similar:false,best:false,duplicateGroup:-1,error:''});added++}
  $('dropText').textContent=items.length?'Cartella caricata: puoi aggiungere altre immagini o trascinarle qui.':'Trascina qui le foto oppure scegli da dove iniziare.';
  $('status').textContent=accepted.length&&!added?'Le immagini selezionate sono già presenti.':files.length&&!accepted.length?'Nessun file immagine riconosciuto.':accepted.length&&!$('autoAnalyze').checked?'Immagini caricate. Premi “Analizza foto” quando vuoi.':'';
  render();
  if(added&&$('autoAnalyze').checked)analyzeAll();
 }
-function clearAll(){items.forEach(x=>URL.revokeObjectURL(x.url));items.splice(0);$('progress').style.width='0';$('status').textContent='';$('dropText').textContent='Trascina qui le foto oppure scegli da dove iniziare.';render()}
+function clearAll(){if(running)return;items.forEach(x=>URL.revokeObjectURL(x.url));items.splice(0);$('progress').style.width='0';$('status').textContent='';$('exportStatus').textContent='';$('onlyReview').checked=false;document.querySelectorAll('.filter').forEach(x=>x.classList.toggle('active',x.dataset.filter==='all'));$('dropText').textContent='Trascina qui le foto oppure scegli da dove iniziare.';render()}
 function fmt(n){return n<1024?n+' B':n<1048576?(n/1024).toFixed(1)+' KB':(n/1048576).toFixed(1)+' MB'}
 function imageCanvas(file){
  return new Promise((resolve,reject)=>{const url=URL.createObjectURL(file),img=new Image();img.onload=()=>{const scale=Math.min(1,800/img.naturalWidth,600/img.naturalHeight),w=Math.max(1,Math.round(img.naturalWidth*scale)),h=Math.max(1,Math.round(img.naturalHeight*scale)),canvas=document.createElement('canvas');canvas.width=w;canvas.height=h;const ctx=canvas.getContext('2d',{willReadFrequently:true});ctx.drawImage(img,0,0,w,h);URL.revokeObjectURL(url);resolve({canvas,ctx,w,h})};img.onerror=()=>{URL.revokeObjectURL(url);reject(new Error('Formato non leggibile dal browser'))};img.src=url});
@@ -163,9 +165,9 @@ function medianBlur3(gray,w,h){
  for(let y=0;y<h;y++){out[y*w]=gray[y*w];out[y*w+w-1]=gray[y*w+w-1]}
  return out;
 }
-function edgeAcutance(gray,w,h,x0=0,y0=0,x1=w,y1=h){
+function edgeAcutance(gray,w,h,x0=0,y0=0,x1=w,y1=h,clean=null){
  const roiW=x1-x0,roiH=y1-y0;if(roiW<3||roiH<3)return 0;
- const clean=medianBlur3(gray,w,h),magnitudes=[];
+ clean=clean||medianBlur3(gray,w,h);const magnitudes=[];
  for(let y=Math.max(1,y0);y<Math.min(h-1,y1);y++)for(let x=Math.max(1,x0);x<Math.min(w-1,x1);x++){
   const p=y*w+x;
   const gx=-clean[p-w-1]+clean[p-w+1]-2*clean[p-1]+2*clean[p+1]-clean[p+w-1]+clean[p+w+1];
@@ -189,8 +191,9 @@ async function analyzeItem(item){
   const gray=new Float32Array(w*h);let dark=0,bright=0;
   for(let i=0,p=0;i<data.length;i+=4,p++){const v=.299*data[i]+.587*data[i+1]+.114*data[i+2];gray[p]=v;if(v<12)dark++;if(v>245)bright++}
   const centerX0=Math.floor(w/4),centerX1=Math.ceil(3*w/4),centerY0=Math.floor(h/4),centerY1=Math.ceil(3*h/4);
-  const center=edgeAcutance(gray,w,h,centerX0,centerY0,centerX1,centerY1),full=edgeAcutance(gray,w,h);
-  item.score=Math.round(center>=180?center:center*.7+full*.3);
+  const blurred=medianBlur3(gray,w,h);
+  const center=edgeAcutance(gray,w,h,centerX0,centerY0,centerX1,centerY1,blurred),full=edgeAcutance(gray,w,h,0,0,w,h,blurred);
+  item.score=Math.round(center*.7+full*.3);
   item.exposure=[];if(dark/(w*h)>.45)item.exposure.push('Molto scura?');if(bright/(w*h)>.30)item.exposure.push('Alte luci?');
   item.error='';
  }catch(e){item.score=null;item.hash=null;item.error=e.message||'Impossibile leggere l’immagine';item.hashError='';return}
@@ -229,34 +232,38 @@ function groupSimilar(){
  }
 }
 async function analyzeAll(){
- const pending=items.filter(x=>x.score===null&&!x.error);if(!items.length)return;
- $('analyze').disabled=true;$('selectGood').disabled=true;$('status').textContent='Analisi in corso…';let done=0;
- for(const item of items){if(item.score===null&&!item.error)await analyzeItem(item);done++;$('progress').style.width=(done/items.length*100)+'%';$('status').textContent='Analisi: '+done+' di '+items.length;render()}
- groupSimilar();render();$('analyze').disabled=false;$('selectGood').disabled=false;$('status').textContent='Analisi completata. Controlla i risultati prima di esportare.';
-}
-function selectGood(){
- const threshold=Number($('threshold').value);
- items.forEach(x=>x.selected=false);
- const bestByGroup=new Map();
- for(const x of items){
-  if(x.similar&&x.duplicateGroup>=0){
-   const current=bestByGroup.get(x.duplicateGroup);
-   if(!current||(x.score??-1)>(current.score??-1))bestByGroup.set(x.duplicateGroup,x);
+ if(running||!items.length)return;
+ running=true;render();$('status').textContent='Analisi in corso…';let done=0;
+ try{
+  // Il ciclo include anche le immagini aggiunte mentre l'analisi è in corso.
+  for(const item of items){
+   if(item.score===null&&!item.error)await analyzeItem(item);
+   done++;$('progress').style.width=(done/Math.max(items.length,1)*100)+'%';$('status').textContent='Analisi: '+done+' di '+items.length;
   }
+  groupSimilar();$('status').textContent='Analisi completata. Controlla i risultati prima di esportare.';
+ }catch(e){$('status').textContent='Analisi interrotta: '+(e.message||'errore imprevisto');}
+ finally{running=false;render()}
+}
+function getVisibleItems(){
+ const filter=document.querySelector('.filter.active')?.dataset.filter||'all',reviewOnly=$('onlyReview').checked,threshold=Number($('threshold').value);
+ let sorted=[...items];if($('sort').value==='sharpness')sorted.sort((a,b)=>(b.score??-1)-(a.score??-1));else if($('sort').value==='size')sorted.sort((a,b)=>b.file.size-a.file.size);else sorted.sort((a,b)=>a.file.name.localeCompare(b.file.name,'it'));
+ return sorted.filter(x=>(!reviewOnly||x.score===null||x.score<threshold||x.exposure.length||x.similar)&&(filter==='all'||filter==='selected'&&x.selected||filter==='review'&&(x.score===null||x.score<threshold||x.exposure.length)||filter==='similar'&&x.similar));
+}
+function invertVisible(){const visible=new Set(getVisibleItems());visible.forEach(x=>x.selected=!x.selected);render()}
+function selectGood(){
+ const threshold=Number($('threshold').value),visible=getVisibleItems();
+ const bestByGroup=new Map();
+ for(const x of visible){if(x.similar&&x.duplicateGroup>=0){const current=bestByGroup.get(x.duplicateGroup);if(!current||(x.score??-1)>(current.score??-1))bestByGroup.set(x.duplicateGroup,x)}}
+ for(const x of visible){
+  if(x.similar&&x.duplicateGroup>=0){const best=bestByGroup.get(x.duplicateGroup);if(x===best&&x.score!==null&&x.score>=threshold&&!x.exposure.length&&!x.error)x.selected=true;}
+  else if(x.score!==null&&x.score>=threshold&&!x.exposure.length&&!x.error)x.selected=true;
  }
- for(const x of items){
-  if(x.similar&&x.duplicateGroup>=0){
-   const best=bestByGroup.get(x.duplicateGroup);
-   if(x===best&&x.score!==null&&x.score>=threshold&&!x.exposure.length&&!x.error)x.selected=true;
-  }else if(x.score!==null&&x.score>=threshold&&!x.exposure.length&&!x.error)x.selected=true;
- }
- render();$('status').textContent='Selezione iniziale pronta: per ogni gruppo è selezionata la foto con il punteggio di nitidezza più alto. Controlla manualmente prima di esportare.';
+ render();$('status').textContent='Selezione aggiornata: le foto idonee visibili sono state aggiunte senza cancellare le scelte manuali. Controlla il risultato prima di esportare.';
 }
 function render(){
  const grid=$('grid'),empty=$('empty');grid.replaceChildren();
- const filter=document.querySelector('.filter.active')?.dataset.filter||'all',reviewOnly=$('onlyReview').checked,threshold=Number($('threshold').value);
- let sorted=[...items];if($('sort').value==='sharpness')sorted.sort((a,b)=>(b.score??-1)-(a.score??-1));else if($('sort').value==='size')sorted.sort((a,b)=>b.file.size-a.file.size);else sorted.sort((a,b)=>a.file.name.localeCompare(b.file.name,'it'));
- const visible=sorted.filter(x=>(!reviewOnly||x.score===null||x.score<threshold||x.exposure.length||x.similar)&&(filter==='all'||filter==='selected'&&x.selected||filter==='review'&&(x.score===null||x.score<threshold||x.exposure.length)||filter==='similar'&&x.similar));
+ const threshold=Number($('threshold').value);
+ const visible=getVisibleItems();
  for(const item of visible){
   const card=document.createElement('article');card.className='photo'+(item.selected?' selected':'');card.tabIndex=0;card.setAttribute('aria-label',item.file.name+(item.selected?', selezionata':', non selezionata'));
   const img=document.createElement('img');img.className='preview';img.src=item.url;img.alt=item.file.name;img.loading='lazy';img.addEventListener('dblclick',()=>window.open(item.url,'_blank','noopener'));
@@ -274,22 +281,26 @@ function render(){
  }
  empty.classList.toggle('hidden',visible.length>0);empty.textContent=items.length?'Nessuna foto corrisponde al filtro.':'Scegli una cartella per visualizzare le foto.';
  const selected=items.filter(x=>x.selected).length;$('stats').textContent=items.length+' foto · '+selected+' selezionate'+(items.some(x=>x.score!==null)?' · '+items.filter(x=>x.score!==null&&x.score<threshold).length+' da controllare':'');
- $('analyze').disabled=!items.length;$('selectGood').disabled=!items.some(x=>x.score!==null);$('invert').disabled=!items.length;$('clear').disabled=!items.length;$('exportPanel').classList.toggle('hidden',selected===0);
+ $('analyze').disabled=!items.length||running;$('selectGood').disabled=running||!items.some(x=>x.score!==null);$('invert').disabled=running||!visible.length;$('clear').disabled=running||!items.length;$('exportPanel').classList.toggle('hidden',selected===0);
 }
 async function copySelected(){
  const chosen=items.filter(x=>x.selected);if(!chosen.length)return;
  if(!window.showDirectoryPicker){$('exportStatus').textContent='Il browser non supporta la scelta di una cartella di destinazione. Usa lo ZIP.';return}
- try{const dir=await window.showDirectoryPicker({mode:'readwrite'});let copied=0;
-  for(const item of chosen){let name=item.file.name,base=name,last=1;while(true){try{await dir.getFileHandle(name);const dot=base.lastIndexOf('.');name=dot>0?base.slice(0,dot)+'_'+last+base.slice(dot):base+'_'+last;last++}catch{break}}
-   const handle=await dir.getFileHandle(name,{create:true}),w=await handle.createWritable();await w.write(item.file);await w.close();copied++}
-  $('exportStatus').textContent='Copiate '+copied+' foto. Gli originali sono rimasti invariati.';
+ try{const dir=await window.showDirectoryPicker({mode:'readwrite'});let copied=0;const errors=[];
+  for(const item of chosen){
+   let name=item.file.name,base=name,last=1;
+   while(true){try{await dir.getFileHandle(name);const dot=base.lastIndexOf('.');name=dot>0?base.slice(0,dot)+'_'+last+base.slice(dot):base+'_'+last;last++}catch(e){if(e.name==='NotFoundError')break;errors.push(item.file.name+': impossibile verificare il nome di destinazione');name=null;break}}
+   if(!name)continue;
+   try{const handle=await dir.getFileHandle(name,{create:true}),w=await handle.createWritable();await w.write(item.file);await w.close();copied++}catch(e){errors.push(item.file.name+': '+(e.message||'copia non riuscita'))}
+  }
+  $('exportStatus').textContent='Copiate '+copied+' di '+chosen.length+' foto.'+(errors.length?' Errori: '+errors.join(' · '):' Gli originali sono rimasti invariati.');
  }catch(e){$('exportStatus').textContent=e.name==='AbortError'?'Operazione annullata.':'Copia non riuscita: '+e.message}
 }
 async function downloadZip(){
  const chosen=items.filter(x=>x.selected);if(!chosen.length)return;$('exportStatus').textContent='Preparo lo ZIP…';
  try{
   if(!window.JSZip)await new Promise((resolve,reject)=>{const s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';s.onload=resolve;s.onerror=reject;document.head.append(s)});
-  const zip=new JSZip(),used=new Set();chosen.forEach(x=>{let name=x.file.name,n=1;while(used.has(name.toLowerCase())){const dot=x.file.name.lastIndexOf('.');name=x.file.name.slice(0,dot)+'_'+n+++x.file.name.slice(dot)}used.add(name.toLowerCase());zip.file(name,x.file)});
+  const zip=new JSZip(),used=new Set();chosen.forEach(x=>{let name=x.file.name,n=1;while(used.has(name.toLowerCase())){const dot=x.file.name.lastIndexOf('.');name=dot>0?x.file.name.slice(0,dot)+'_'+n+x.file.name.slice(dot):x.file.name+'_'+n;n++}used.add(name.toLowerCase());zip.file(name,x.file)});
   const blob=await zip.generateAsync({type:'blob'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='photo-selector-selezione.zip';a.click();setTimeout(()=>URL.revokeObjectURL(url),1500);$('exportStatus').textContent='ZIP pronto.';
  }catch(e){$('exportStatus').textContent='Non è stato possibile creare lo ZIP. Controlla la connessione e riprova.'}
 }
