@@ -1,8 +1,8 @@
-# Photo Selector
+# Selettore foto
 
 Web app per esaminare una raccolta di fotografie, individuare immagini potenzialmente sfocate e riconoscere foto simili, direttamente dal browser.
 
-**Apri l'app:** https://pepcoiro.github.io/photo-selector/
+**Apri l'app:** https://pepcoiro.github.io/selettore-foto/
 
 ## Funzionalità
 
@@ -16,7 +16,7 @@ Web app per esaminare una raccolta di fotografie, individuare immagini potenzial
 
 ## Come si usa
 
-1. Apri Photo Selector nel browser.
+1. Apri [Selettore foto](https://pepcoiro.github.io/selettore-foto/) nel browser.
 2. Seleziona una cartella o scegli le immagini da analizzare.
 3. Avvia l'analisi e attendi che sia completata.
 4. Controlla nitidezza, avvisi e gruppi di immagini simili.
