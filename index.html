@@ -69,8 +69,6 @@ hr{border:0;border-top:1px solid var(--line);margin:20px 0}
 <body>
 <main>
 <header><span class="brand">Selettore <span>foto</span></span></header>
-<h1>Seleziona le foto migliori</h1>
-<p class="intro">Apri una cartella, controlla le anteprime e seleziona gli scatti da conservare. L'analisi di nitidezza ed esposizione è indicativa: verifica sempre le foto prima di copiarle.</p>
 <section class="panel">
   <div class="drop" id="drop">
     <p id="dropText">Trascina qui le foto oppure scegli da dove iniziare.</p>
@@ -83,8 +81,7 @@ hr{border:0;border-top:1px solid var(--line);margin:20px 0}
   </div>
   <div class="settings">
     <div class="field"><label for="threshold">Segnala sotto (nitidezza)</label><input id="threshold" type="number" min="0" max="1000" step="10" value="180"><label class="checkline"><input id="autoAnalyze" type="checkbox" checked> Analizza all'apertura</label></div>
-    <div class="field"><label for="similarity">Sensibilità foto simili</label><select id="similarity"><option value="6">Alta (più selettiva)</option><option value="9" selected>Bilanciata</option><option value="12">Bassa (più gruppi)</option></select><label class="checkline"><input id="markDuplicates" type="checkbox" checked> Evidenzia foto simili</label></div>
-    <div class="field"><label for="sort">Ordina per</label><select id="sort"><option value="name">Nome file</option><option value="sharpness">Nitidezza</option><option value="size">Dimensione file</option></select><label class="checkline"><input id="onlyReview" type="checkbox"> Solo da controllare / simili</label></div>
+    <div class="field"><label for="similarity">Sensibilità foto simili</label><select id="similarity"><option value="6">Alta (più selettiva)</option><option value="9" selected>Bilanciata</option><option value="12">Bassa (più gruppi)</option></select><label class="checkline"><input id="markDuplicates" type="checkbox" checked> Evidenzia foto simili</label><label class="checkline"><input id="onlyReview" type="checkbox"> Solo da controllare / simili</label></div>
   </div>
   <div class="toolbar">
     <div class="stats" id="stats" aria-live="polite">Nessuna immagine selezionata.</div>
@@ -135,7 +132,6 @@ $('selectGood').addEventListener('click',selectGood);
 $('invert').addEventListener('click',invertVisible);
 $('clear').addEventListener('click',clearAll);
 $('onlyReview').addEventListener('change',render);
-$('sort').addEventListener('change',render);
 $('markDuplicates').addEventListener('change',()=>{if(items.length)analyzeAll()});
 $('similarity').addEventListener('change',()=>{if(items.length)groupSimilar();render()});
 $('threshold').addEventListener('input',render);
@@ -248,7 +244,7 @@ async function analyzeAll(){
 }
 function getVisibleItems(){
  const filter=document.querySelector('.filter.active')?.dataset.filter||'all',reviewOnly=$('onlyReview').checked,threshold=Number($('threshold').value);
- let sorted=[...items];if($('sort').value==='sharpness')sorted.sort((a,b)=>(b.score??-1)-(a.score??-1));else if($('sort').value==='size')sorted.sort((a,b)=>b.file.size-a.file.size);else sorted.sort((a,b)=>a.file.name.localeCompare(b.file.name,'it'));
+ const sorted=[...items];
  return sorted.filter(x=>(!reviewOnly||x.score===null||x.score<threshold||x.exposure.length||x.similar)&&(filter==='all'||filter==='selected'&&x.selected||filter==='review'&&(x.score===null||x.score<threshold||x.exposure.length)||filter==='similar'&&x.similar));
 }
 function invertVisible(){const visible=new Set(getVisibleItems());visible.forEach(x=>x.selected=!x.selected);render()}
