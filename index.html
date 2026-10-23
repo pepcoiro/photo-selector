@@ -132,7 +132,7 @@ drop.addEventListener('drop',e=>{e.preventDefault();drop.classList.remove('drag'
 $('analyze').addEventListener('click',()=>analyzeAll());
 $('selectGood').addEventListener('click',selectGood);
 $('invert').addEventListener('click',invertVisible);
-$('clear').addEventListener('click',clearAll);
+$('clear').addEventListener('click',()=>{if(items.length&&window.confirm('Vuoi davvero azzerare tutto? Verranno rimosse tutte le foto caricate e le selezioni.'))clearAll()});
 $('onlyReview').addEventListener('change',render);
 $('markDuplicates').addEventListener('change',()=>{if(items.length)analyzeAll()});
 $('similarity').addEventListener('change',()=>{if(items.length)groupSimilar();render()});
