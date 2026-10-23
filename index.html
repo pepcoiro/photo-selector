@@ -11,7 +11,7 @@
 *{box-sizing:border-box}
 html{scrollbar-gutter:stable}
 body{margin:0;padding:36px 24px;background:var(--bg);color:var(--fg);font:400 17px/1.7 "Jost",sans-serif}
-main{width:min(100%,760px);margin:0 auto;padding-bottom:30px}
+main{width:min(100%,900px);margin:0 auto;padding-bottom:30px}
 header{display:flex;align-items:center;justify-content:space-between;gap:14px;margin:0 0 30px}
 .brand{font-size:30px;line-height:1.2;font-weight:600;letter-spacing:-.03em;color:var(--fg);text-decoration:none}
 .brand span{color:var(--fg)}
@@ -20,7 +20,7 @@ h1{font-size:30px;letter-spacing:-.8px;margin:0 0 8px}
 h2{font-size:23px;margin:0 0 12px}
 p{margin:0 0 14px}
 .intro{color:var(--muted);max-width:680px;margin-bottom:24px}
-.panel{background:transparent;border:0;border-top:1px solid var(--line);border-radius:0;padding:22px 0;margin:24px 0}
+.panel{background:transparent;border:0;border-radius:0;padding:22px 0;margin:24px 0}
 .actions{display:flex;gap:9px;flex-wrap:wrap;align-items:center}
 .btn{font:400 15px "Jost",sans-serif;border:1px solid var(--fg);border-radius:0;background:var(--fg);color:#14213D;padding:7px 12px;cursor:pointer;transition:opacity .15s}
 .btn:hover{opacity:.75}
@@ -59,6 +59,7 @@ input[type=checkbox]{accent-color:var(--accent);width:16px;height:16px}
 .status{font-size:14px;color:var(--muted);min-height:22px;margin-top:10px}
 .small{font-size:13px;color:var(--muted)}
 .hidden{display:none!important}
+body:not(.has-photos) .settings,body:not(.has-photos) .toolbar,body:not(.has-photos) .progress,body:not(.has-photos) #status,body:not(.has-photos) #filters,body:not(.has-photos) #grid,body:not(.has-photos) #empty,body:not(.has-photos) #exportPanel,body:not(.has-photos) #privacyNote,body:not(.has-photos) .site-footer{display:none!important}
 hr{border:0;border-top:1px solid var(--line);margin:20px 0}
 @media(max-width:900px){.grid{grid-template-columns:repeat(3,minmax(0,1fr))}.preview{height:145px}}
 @media(max-width:620px){body{padding:24px 18px}.brand{font-size:27px}.settings{grid-template-columns:1fr 1fr;gap:14px}.grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:0 12px}.preview{height:125px}.toolbar{align-items:flex-start}}
@@ -111,7 +112,7 @@ hr{border:0;border-top:1px solid var(--line);margin:20px 0}
   <div class="actions"><button class="btn" id="copyFiles" type="button">Copia selezionate in una cartella…</button><button class="btn alt" id="downloadFiles" type="button">Scarica selezionate (ZIP)</button></div>
   <div class="status" id="exportStatus" aria-live="polite"></div>
 </section>
-<p class="small">Privacy: le foto vengono elaborate localmente nel browser, non caricate su un server. Questo prototipo supporta i formati che il browser riesce a decodificare; TIFF e RAW potrebbero non essere visualizzabili. L'analisi non sostituisce il controllo visivo.</p>
+<p class="small" id="privacyNote">Privacy: le foto vengono elaborate localmente nel browser, non caricate su un server. Questo prototipo supporta i formati che il browser riesce a decodificare; TIFF e RAW potrebbero non essere visualizzabili. L'analisi non sostituisce il controllo visivo.</p>
 </main>
 <footer class="site-footer"><a href="https://pepcoiro.github.io/website/" target="_blank" rel="noopener noreferrer" data-current-year>@ 2026 Giuseppe Coiro</a></footer>
 <script src="https://cdn.jsdelivr.net/npm/phash-js/dist/phash.js"></script>
@@ -259,6 +260,7 @@ function selectGood(){
  render();$('status').textContent='Selezione aggiornata: le foto idonee visibili sono state aggiunte senza cancellare le scelte manuali. Controlla il risultato prima di esportare.';
 }
 function render(){
+ document.body.classList.toggle('has-photos',items.length>0);
  const grid=$('grid'),empty=$('empty');grid.replaceChildren();
  const threshold=Number($('threshold').value);
  const visible=getVisibleItems();
