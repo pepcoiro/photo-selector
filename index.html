@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="description" content="Photo Selector: seleziona, controlla e organizza fotografie direttamente nel browser.">
-<title>Photo Selector</title>
+<meta name="description" content="Selettore foto: seleziona, controlla e organizza fotografie direttamente nel browser.">
+<title>Selettore foto</title>
 <style>
 @import url("https://fonts.googleapis.com/css2?family=Jost:wght@300;400;500;600;700&display=swap");
 :root{color-scheme:dark;--bg:#14213D;--panel:#14213D;--fg:#FFFFFF;--muted:#E5E5E5;--line:rgba(229,229,229,.35);--accent:#FCA311;--soft:#E5E5E5;--danger:#FCA311}
@@ -68,7 +68,7 @@ hr{border:0;border-top:1px solid var(--line);margin:20px 0}
 </head>
 <body>
 <main>
-<header><a class="brand" href="#" aria-label="Photo Selector">Photo <span>Selector</span></a></header>
+<header><a class="brand" href="#" aria-label="Selettore foto">Selettore <span>foto</span></a></header>
 <h1>Seleziona le foto migliori</h1>
 <p class="intro">Apri una cartella, controlla le anteprime e seleziona gli scatti da conservare. L'analisi di nitidezza ed esposizione è indicativa: verifica sempre le foto prima di copiarle.</p>
 <section class="panel">
@@ -303,7 +303,7 @@ async function downloadZip(){
  try{
   if(!window.JSZip)await new Promise((resolve,reject)=>{const s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';s.onload=resolve;s.onerror=reject;document.head.append(s)});
   const zip=new JSZip(),used=new Set();chosen.forEach(x=>{let name=x.file.name,n=1;while(used.has(name.toLowerCase())){const dot=x.file.name.lastIndexOf('.');name=dot>0?x.file.name.slice(0,dot)+'_'+n+x.file.name.slice(dot):x.file.name+'_'+n;n++}used.add(name.toLowerCase());zip.file(name,x.file)});
-  const blob=await zip.generateAsync({type:'blob'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='photo-selector-selezione.zip';a.click();setTimeout(()=>URL.revokeObjectURL(url),1500);$('exportStatus').textContent='ZIP pronto.';
+  const blob=await zip.generateAsync({type:'blob'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='selettore-foto-selezione.zip';a.click();setTimeout(()=>URL.revokeObjectURL(url),1500);$('exportStatus').textContent='ZIP pronto.';
  }catch(e){$('exportStatus').textContent='Non è stato possibile creare lo ZIP. Controlla la connessione e riprova.'}
 }
 render();
